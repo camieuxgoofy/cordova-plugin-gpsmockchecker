@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.provider.Settings.Secure;
 import android.util.Log;
 
@@ -14,7 +15,7 @@ import org.json.JSONObject;
 
 import java.util.List;
 
-public class GPSMockChecker extends CordovaPlugin{
+public class GPSMockChecker extends CordovaPlugin {
 
     private JSONObject objGPS = new JSONObject();
     private GPSMockChecker mContext;
@@ -27,24 +28,29 @@ public class GPSMockChecker extends CordovaPlugin{
         if (action.equals("check")) {
             objGPS = new JSONObject();
             if (android.os.Build.VERSION.SDK_INT <= 22) {
-                if (Secure.getString(this.cordova.getActivity().getContentResolver(), Secure.ALLOW_MOCK_LOCATION).equals("0")){
-                    objGPS.put("isMock",false);
-                }else{
-                    objGPS.put("isMock",true);
+                // For SDK <= 22, check the ALLOW_MOCK_LOCATION setting
+                if (Secure.getString(this.cordova.getActivity().getContentResolver(), Secure.ALLOW_MOCK_LOCATION).equals("0")) {
+                    objGPS.put("isMock", false);
+                } else {
+                    objGPS.put("isMock", true);
                 }
-
-            }
-            else {
-                JSONArray mocks =areThereMockPermissionApps(mContext.cordova.getActivity());
-                objGPS.put("isMock", mocks.length() > 0);
-                if (objGPS.getBoolean("isMock")) {
-                    objGPS.put("mocks",mocks);
+            } else {
+                // For SDK > 22, use mock location detection with Location object
+                Location location = // obtain the Location object here
+                if (location != null && location.isFromMockProvider()) {
+                    objGPS.put("isMock", true);
+                } else {
+                    JSONArray mocks = areThereMockPermissionApps(mContext.cordova.getActivity());
+                    objGPS.put("isMock", mocks.length() > 0);
+                    if (objGPS.getBoolean("isMock")) {
+                        objGPS.put("mocks", mocks);
+                    }
                 }
             }
-            Log.i("Location", "isMock: "+objGPS.get("isMock"));
+            Log.i("Location", "isMock: " + objGPS.get("isMock"));
             callbackContext.success(objGPS);
             return true;
-        }else {
+        } else {
             return false;
         }
     }
@@ -65,7 +71,7 @@ public class GPSMockChecker extends CordovaPlugin{
                 if (requestedPermissions != null) {
                     for (int i = 0; i < requestedPermissions.length; i++) {
                         // Check for System App //
-                        if(!((applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 1)) {
+                        if (!((applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 1)) {
                             if (requestedPermissions[i]
                                     .equals("android.permission.ACCESS_MOCK_LOCATION")
                                     && !applicationInfo.packageName.equals(context.getPackageName())
@@ -80,7 +86,7 @@ public class GPSMockChecker extends CordovaPlugin{
                     }
                 }
             } catch (PackageManager.NameNotFoundException e) {
-                Log.e("Got exception " , e.getMessage());
+                Log.e("Got exception ", e.getMessage());
             }
         }
 
@@ -89,12 +95,10 @@ public class GPSMockChecker extends CordovaPlugin{
 
     private static boolean inWhiteList(String item) throws JSONException {
         for (int i = 0; i < whiteList.length(); i++) {
-            if (whiteList.get(i).toString().equals(item)){
+            if (whiteList.get(i).toString().equals(item)) {
                 return true;
             }
         }
         return false;
     }
-
-
 }
